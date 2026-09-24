@@ -1,0 +1,372 @@
+{
+  "name": "My workflow",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -16,
+        -48
+      ],
+      "id": "0a9b1c44-0ef9-4ac5-a7e1-2aacdf3f4f6f",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "d2e5a8f9-0fa0-4841-8495-a4b652927f81",
+              "name": "question",
+              "value": "Will Bitcoin reach $150000 at the end of 2026?",
+              "type": "string"
+            },
+            {
+              "id": "48ae6e8b-01a1-494a-94f4-a00520107e9f",
+              "name": "question ",
+              "value": "={{ $json.chatInput }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        208,
+        -48
+      ],
+      "id": "cd7a0a62-1a5b-424a-8ce2-e3931c889d45",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=User question:\n{{ $('Edit Fields').item.json.question }}\n\nPolymarket search results:\n{{ JSON.stringify($json) }}\n\nAnalyze the provided Polymarket data according to your system instructions.",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "CRITICAL QUESTION INTEGRITY RULE:\n\nPreserve the user's question EXACTLY as provided.\nNever rewrite, generalize, shorten, or replace the user's question.\n\nA related market is NOT automatically a direct match.\n\nOnly report a Market-implied probability if the retrieved market directly corresponds to the user's specific question, including the relevant threshold, condition, timeframe, and resolution criteria.\n\nFor example:\nIf the user asks whether Bitcoin will reach $150,000 by the end of 2026, a market asking whether Bitcoin will reach $100,000 by the end of 2026 is NOT a direct match.\n\nRelated markets may be mentioned as supporting context, but their probabilities must NOT be presented as the probability of the user's question.\n\nIf no direct market exists:\nMarket-implied probability: N/A\nYour estimated probability: N/A\n\nDo not calculate or infer a probability for the user's question from related markets unless the system explicitly provides a valid methodology for doing so.\n\nQUESTION FIELD RULE:\n\nThe \"question\" field in your output MUST be an exact copy of the user's original question.\n\nDo not paraphrase it.\nDo not summarize it.\nDo not convert it into a different question.\nDo not change the wording of the user's question.\n\n\nDIRECT-MATCH PRIORITY RULE:\n\nWhen multiple retrieved markets are relevant, prioritize the market that most closely matches the user's exact question.\n\nFor threshold questions, the exact threshold takes priority over lower or higher thresholds.\n\nFor example, if the user asks:\n\"Will Bitcoin reach $150000 at the end of 2026?\"\n\nand the retrieved markets include:\n- $100,000 by December 31, 2026\n- $120,000 by December 31, 2026\n- $150,000 by December 31, 2026\n- $200,000 by December 31, 2026\n\nthe $150,000 market is the direct match and must be selected.\n\nDo not select a lower or higher threshold merely because it has greater volume, liquidity, or probability.\n\nIf an exact-threshold market exists, use its probability as the market-implied probability.\n\nRelated markets can be included as supporting evidence but must not replace the direct match.\n\n",
+          "maxIterations": 3
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        576,
+        -48
+      ],
+      "id": "2514cb7e-7266-43b8-baa1-800bb83a4b82",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.8-flash",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        576,
+        176
+      ],
+      "id": "29bc9189-74cf-43fe-aac2-61c5898c5253",
+      "name": "Google Gemini Chat Model",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "YbVlFTVekB4ppadE",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "toolDescription": "Searches Polymarket for current prediction markets relevant to the user's question. Use this tool FIRST when you need to find a market matching the user's question. Prefer active and open markets and ignore closed or historical markets unless the user explicitly asks for them. After finding a relevant market, use HTTP Request to retrieve the current market data and outcome prices. Do not repeatedly call this tool after a relevant current market has been found.",
+        "url": "https://gamma-api.polymarket.com/public-search",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ $json.question }}"
+            }
+          ]
+        },
+        "options": {},
+        "optimizeResponse": true,
+        "fieldsToInclude": "selected",
+        "fields": "question,outcomePrices,outcomes,volume,liquidity,endDate,description"
+      },
+      "type": "n8n-nodes-base.httpRequestTool",
+      "typeVersion": 4.5,
+      "position": [
+        -320,
+        112
+      ],
+      "id": "f3320a91-4949-4965-8520-e059f29b9018",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"question\": \"Will the Federal Reserve cut interest rates at the next meeting?\",\n  \"relevant_market\": \"Fed Decision in September?\",\n  \"market_implied_probability\": 0.006,\n  \"estimated_probability\": 0.01,\n  \"supporting_evidence\": [\n    \"Current prediction-market pricing\",\n    \"Trading volume and liquidity\",\n    \"Market resolution criteria\"\n  ],\n  \"uncertainty_risk\": \"Unexpected economic data or a major financial shock could change the probability.\",\n  \"conclusion\": \"The probability of a rate cut appears very low.\"\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        720,
+        176
+      ],
+      "id": "b86d07a1-6e94-4849-abf4-8e03120fa435",
+      "name": "Structured Output Parser"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "65dc5ebf-dc52-46e1-b211-b612a4d7bfa1",
+              "name": "report_title",
+              "value": "AI Prediction Market Intelligence Report",
+              "type": "string"
+            },
+            {
+              "id": "2b482aa6-954f-4cd3-99a6-de972c08e300",
+              "name": "question",
+              "value": "={{ $json.output.question }}",
+              "type": "string"
+            },
+            {
+              "id": "6e7567b3-5688-4ce3-97c2-d0994355c820",
+              "name": "relevant_market",
+              "value": "={{ $json.output.relevant_market }}",
+              "type": "string"
+            },
+            {
+              "id": "a1a9b615-a392-4adc-853d-8dbc8c7e4217",
+              "name": "market_implied_probability",
+              "value": "={{ $json.output.market_implied_probability }}",
+              "type": "string"
+            },
+            {
+              "id": "259bf761-b3d2-4683-a45b-4e8421dd0f9d",
+              "name": "estimated_probability",
+              "value": "={{ $json.output.estimated_probability }}",
+              "type": "string"
+            },
+            {
+              "id": "d33ed1dd-e20b-47cf-89b9-31eb9ee4986a",
+              "name": "supporting_evidence",
+              "value": "={{ $json.output.supporting_evidence.join(\" | \") }}",
+              "type": "string"
+            },
+            {
+              "id": "24869802-41e3-4a95-9124-0418232370a2",
+              "name": "uncertainty_risk",
+              "value": "={{ $json.output.uncertainty_risk }}",
+              "type": "string"
+            },
+            {
+              "id": "630b2659-de92-4149-ba60-115f31acc305",
+              "name": "conclusion",
+              "value": "={{ $json.output.conclusion }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        880,
+        -48
+      ],
+      "id": "a8ba3628-2dc3-4ea8-a606-d75278324695",
+      "name": "Edit Fields1"
+    },
+    {
+      "parameters": {
+        "public": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.chatTrigger",
+      "typeVersion": 1.4,
+      "position": [
+        -320,
+        -192
+      ],
+      "id": "931b2d23-90ab-4939-afc6-4e90067d76b2",
+      "name": "When chat message received",
+      "webhookId": "a40c5765-9803-433c-a1a2-f8709bb8651c"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "piwXoUESLYk9KYmZ",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/piwXoUESLYk9KYmZ",
+          "cachedResultName": "My Sub-Workflow 2"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "question": "={{ $json.question }}"
+          },
+          "matchingColumns": [
+            "question"
+          ],
+          "schema": [
+            {
+              "id": "question",
+              "displayName": "question",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2.2,
+      "position": [
+        -176,
+        112
+      ],
+      "id": "96be52b8-0494-4afd-9c58-01db67221d3f",
+      "name": "Call 'My Sub-Workflow 2'"
+    },
+    {
+      "parameters": {
+        "url": "https://gamma-api.polymarket.com/public-search",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ $json.question }}"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "json"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        384,
+        -48
+      ],
+      "id": "bb5d91a3-a43c-49a6-aba6-9f67c7238006",
+      "name": "HTTP Request"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        []
+      ]
+    },
+    "Google Gemini Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "ai_tool": [
+        []
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'My Sub-Workflow 2'": {
+      "ai_tool": [
+        []
+      ]
+    },
+    "When chat message received": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "744b0ee1-dbc0-447c-83f1-26da99ca48a1",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "b2e0bb207cd94a59ba168040cc256387f07bab8c43ac888e43487a277f86401f"
+  },
+  "nodeGroups": [],
+  "id": "Tnadl9wYcAnkkiUc",
+  "tags": []
+}
